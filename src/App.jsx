@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, MapPin, Phone, User, MonitorSmartphone, Hash, Lock } from 'lucide-react';
 
 // ВСТАВТЕ ВАШЕ ПОСИЛАННЯ ТУТ
-const API_URL = "https://script.google.com/macros/s/AKfycbwbwwklb78FmJvQSgfcj9ZyVppYZuFt2zXYXCTpzNEVRLI2iQbG8DcVwtiQvAtvR1vX/exec";
-
+const API_URL = "https://technosmart-repair-api.yemetsvova.workers.dev";
 const STATUSES = ['Нові', 'В роботі', 'Виконані', 'Видані'];
 const POINTS = ['Техносмарт', 'Vodafone'];
 
@@ -17,7 +16,7 @@ const USERS = {
 export default function App() {
   // Стан авторизації
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState('Точка 1');
+  const [currentUser, setCurrentUser] = useState('Техносмарт');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
@@ -66,32 +65,120 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleAddSubmit = async (e) => {
-    e.preventDefault();
-    const newTask = {
-      action: "add",
-      id: Date.now().toString(),
-      ...formData,
-      status: 'Нові'
-    };
 
-    setTasks([...tasks, newTask]);
-    setIsFormOpen(false);
-    setFormData({ client: '', phone: '', device: '', imei: '', issue: '', price: '', point: formData.point });
+const handleAddSubmit = async (e) => {
+  e.preventDefault();
 
-    await fetch(API_URL, {
+  const newTask = {
+    action: "add",
+    id: `TEST-${Date.now()}`,
+    ...formData,
+    status: "Нові"
+  };
+
+  setLoading(true);
+
+  try {
+    const response = await fetch(API_URL, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(newTask)
     });
-  };
 
-  const updateStatus = async (id, newStatus) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
-    await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ action: "updateStatus", id, status: newStatus })
+    const result = await response.json();
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || "Помилка запису");
+    }
+
+    // Отримуємо оновлений список із Google Sheets
+    const refreshResponse = await fetch(API_URL);
+
+    if (!refreshResponse.ok) {
+      throw new Error("Ремонт збережено, але список не оновився");
+    }
+
+    const updatedTasks = await refreshResponse.json();
+
+    if (!Array.isArray(updatedTasks)) {
+      throw new Error("Ремонт збережено, але відповідь некоректна");
+    }
+
+    setTasks(updatedTasks);
+    setIsFormOpen(false);
+
+    setFormData({
+      client: "",
+      phone: "",
+      device: "",
+      imei: "",
+      issue: "",
+      price: "",
+      point: formData.point
     });
-  };
+
+    alert("Тестовий ремонт збережено в Google Sheets!");
+  } catch (error) {
+    console.error("Помилка CRM:", error);
+    alert(error.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+const updateStatus = async (id, newStatus) => {
+  setLoading(true);
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "updateStatus",
+        id,
+        status: newStatus
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || "Помилка зміни статусу");
+    }
+
+    const refreshResponse = await fetch(API_URL);
+
+    if (!refreshResponse.ok) {
+      throw new Error(
+        "Статус збережено, але список не оновився"
+      );
+    }
+
+    const updatedTasks = await refreshResponse.json();
+
+    if (!Array.isArray(updatedTasks)) {
+      throw new Error("Некоректна відповідь сервера");
+    }
+
+    setTasks(updatedTasks);
+
+  } catch (error) {
+    console.error("Помилка зміни статусу:", error);
+    alert("Не вдалося змінити статус: " + error.message);
+
+    // Відновлюємо дані із сервера
+    await fetchTasks();
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const filteredTasks = tasks.filter(task => {
     // ПОШУК ТАКОЖ ПРАЦЮЄ ПО IMEI
