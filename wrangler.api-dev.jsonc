@@ -1,0 +1,20 @@
+
+{
+  "name": "technosmart-repair-api-dev",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-09",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true
+    }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "56437b9317224bc1a55b5ed08442e7a7"
+    }
+  ]
+}

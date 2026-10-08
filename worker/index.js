@@ -2,8 +2,15 @@
 /**
  * TechnoSmart Repair CRM API
  * Cloudflare Worker + Google Sheets API
- * TEST MODE — no production writes
+ * TEST MODE — only TEST- repair IDs
  */
+
+import {
+  authenticate,
+  filterRepairs,
+  resolveNewRepairPoint,
+  canUpdateRepair
+} from "./repair-auth.js";
 
 const ALLOWED_ORIGINS = [
   "https://yemetsv.github.io",
@@ -263,7 +270,7 @@ async function addRepair(env, data) {
   const result = await sheetsRequest(
     env,
     `values/${sheetRange("A:J")}:append` +
-    `?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     {
       method: "POST",
       body: JSON.stringify({ values })
@@ -281,7 +288,7 @@ async function addRepair(env, data) {
   };
 }
 
-async function updateRepairStatus(env, data) {
+async function updateRepairStatus(env, data, user) {
   const id = String(data.id ?? "");
   const status = data.status;
 
@@ -301,29 +308,23 @@ async function updateRepairStatus(env, data) {
 
   const rows = await getRepairRows(env);
 
-  const matches = [];
+  // Find repair and verify access before writing.
+  const access = canUpdateRepair(user, rows, id);
 
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][0] ?? "") === id) {
-      matches.push(i + 1);
-    }
-  }
-
-  if (matches.length !== 1) {
+  if (!access.allowed) {
     return {
       success: false,
-      error: matches.length
-        ? "Duplicate repair ID"
-        : "Repair not found"
+      error: access.reason,
+      statusCode: access.reason === "Forbidden" ? 403 : 400
     };
   }
 
-  const rowNumber = matches[0];
+  const rowNumber = access.rowNumber;
 
   const result = await sheetsRequest(
     env,
     `values/${sheetRange(`I${rowNumber}`)}` +
-    `?valueInputOption=RAW`,
+      `?valueInputOption=RAW`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -347,8 +348,7 @@ export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
 
-    // Development-only CORS check.
-    // This is NOT user authentication.
+    // CORS is not user authentication.
     if (!isAllowed(origin)) {
       return new Response("Forbidden", {
         status: 403
@@ -363,17 +363,33 @@ export default {
           "Access-Control-Allow-Methods":
             "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers":
-            "Content-Type",
+            "Content-Type, Authorization",
           "Vary": "Origin"
         }
       });
     }
 
     try {
+      // Require server-side session.
+      const user = await authenticate(request, env);
+
+      if (!user) {
+        return json({
+          success: false,
+          error: "Unauthorized"
+        }, 401, origin);
+      }
+
+      // Read repairs visible to this user.
       if (request.method === "GET") {
         const repairs = await getRepairs(env);
 
-        return json(repairs, 200, origin);
+        const visibleRepairs = filterRepairs(
+          repairs,
+          user
+        );
+
+        return json(visibleRepairs, 200, origin);
       }
 
       if (request.method === "POST") {
@@ -390,7 +406,11 @@ export default {
 
         const data = await request.json();
 
-        if (!data || typeof data !== "object") {
+        if (
+          !data ||
+          typeof data !== "object" ||
+          Array.isArray(data)
+        ) {
           return json({
             success: false,
             error: "Invalid request"
@@ -400,9 +420,31 @@ export default {
         let result;
 
         if (data.action === "add") {
-          result = await addRepair(env, data);
+          // Server determines the repair point.
+          const point = resolveNewRepairPoint(
+            user,
+            data.point
+          );
+
+          if (!point) {
+            return json({
+              success: false,
+              error: "Forbidden"
+            }, 403, origin);
+          }
+
+          result = await addRepair(env, {
+            ...data,
+            point
+          });
+
         } else if (data.action === "updateStatus") {
-          result = await updateRepairStatus(env, data);
+          result = await updateRepairStatus(
+            env,
+            data,
+            user
+          );
+
         } else {
           return json({
             success: false,
@@ -412,7 +454,9 @@ export default {
 
         return json(
           result,
-          result.success ? 200 : 400,
+          result.success
+            ? 200
+            : (result.statusCode || 400),
           origin
         );
       }
