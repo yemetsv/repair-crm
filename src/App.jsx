@@ -17,7 +17,7 @@ const USERS = {
 export default function App() {
   // Стан авторизації
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState('Точка 1');
+  const [currentUser, setCurrentUser] = useState('Техносмарт');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
