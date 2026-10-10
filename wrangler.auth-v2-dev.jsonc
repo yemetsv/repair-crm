@@ -1,0 +1,21 @@
+
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "technosmart-repair-auth-v2-dev",
+  "main": "worker/auth-v2-dev.js",
+  "compatibility_date": "2026-10-09",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true
+    }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "ed89de64f7574bde866ffea3c7599e1a"
+    }
+  ]
+}
