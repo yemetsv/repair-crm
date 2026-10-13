@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, MapPin, Phone, User, MonitorSmartphone, Hash, Lock } from 'lucide-react';
 
 // DEV only. Do not publish until authentication and production hardening are complete.
-const AUTH_URL = 'https://technosmart-repair-auth-dev.yemetsvova.workers.dev';
-const API_URL = 'https://technosmart-repair-api-dev.yemetsvova.workers.dev';
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'https://technosmart-repair-auth-dev.yemetsvova.workers.dev';
+const API_URL = import.meta.env.VITE_API_URL || 'https://technosmart-repair-api-dev.yemetsvova.workers.dev';
 
 const STATUSES = ['Нові', 'В роботі', 'Виконані', 'Видані'];
 const POINTS = ['Техносмарт', 'Vodafone'];

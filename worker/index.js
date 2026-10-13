@@ -30,6 +30,67 @@ const POINTS = [
   "Техносмарт",
   "Vodafone"
 ];
+// Вигадані ремонти для локального тестування CRM.
+// Не містять реальних персональних даних.
+const LOCAL_TEST_REPAIRS = [
+  {
+    id: "TEST-LOCAL-001",
+    date: "2026-10-13",
+    point: "Техносмарт",
+    client: "Тестовий клієнт 1",
+    phone: "",
+    device: "Samsung Galaxy A52",
+    imei: "",
+    issue: "Заміна дисплея (тест)",
+    status: "Нові",
+    price: "1500"
+  },
+  {
+    id: "TEST-LOCAL-002",
+    date: "2026-10-13",
+    point: "Техносмарт",
+    client: "Тестовий клієнт 2",
+    phone: "",
+    device: "Lenovo IdeaPad",
+    imei: "",
+    issue: "Чищення системи охолодження (тест)",
+    status: "В роботі",
+    price: "800"
+  },
+  {
+    id: "TEST-LOCAL-003",
+    date: "2026-10-13",
+    point: "Vodafone",
+    client: "Тестовий клієнт 3",
+    phone: "",
+    device: "Xiaomi Redmi Note 12",
+    imei: "",
+    issue: "Заміна акумулятора (тест)",
+    status: "Виконані",
+    price: "900"
+  },
+  {
+    id: "TEST-LOCAL-004",
+    date: "2026-10-13",
+    point: "Vodafone",
+    client: "Тестовий клієнт 4",
+    phone: "",
+    device: "Apple iPhone 11",
+    imei: "",
+    issue: "Заміна роз'єму заряджання (тест)",
+    status: "Видані",
+    price: "1200"
+  }
+];
+function isLocalTestMode(request, env) {
+  const hostname = new URL(request.url).hostname;
+
+  return (
+    env.LOCAL_TEST_MODE === "enabled" &&
+    env.LOCAL_TEST_CONFIRM === "repair-crm-local-only" &&
+    (hostname === "127.0.0.1" || hostname === "localhost")
+  );
+}
 
 function isAllowed(origin) {
   return ALLOWED_ORIGINS.includes(origin);
@@ -381,8 +442,11 @@ export default {
       }
 
       // Read repairs visible to this user.
+            // Read repairs visible to this user.
       if (request.method === "GET") {
-        const repairs = await getRepairs(env);
+        const repairs = isLocalTestMode(request, env)
+          ? LOCAL_TEST_REPAIRS
+          : await getRepairs(env);
 
         const visibleRepairs = filterRepairs(
           repairs,
@@ -392,7 +456,15 @@ export default {
         return json(visibleRepairs, 200, origin);
       }
 
-      if (request.method === "POST") {
+            if (request.method === "POST") {
+        // Local test mode: all writes are forbidden.
+        if (isLocalTestMode(request, env)) {
+          return json({
+            success: false,
+            error: "LOCAL_TEST_MODE: read-only"
+          }, 403, origin);
+        }
+
         if (
           !request.headers.get("Content-Type")
             ?.toLowerCase()
